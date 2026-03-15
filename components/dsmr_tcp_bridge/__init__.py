@@ -1,22 +1,24 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PORT
-
-DEPENDENCIES = ["network"]
-AUTO_LOAD = []
+from esphome.core import CORE
 
 CONF_HOST = "host"
 CONF_RECONNECT_INTERVAL = "reconnect_interval"
 CONF_STALE_TIMEOUT = "stale_timeout"
 CONF_STALE_STRATEGY = "stale_strategy"
 
+DEPENDENCIES = ["wifi"]
+AUTO_LOAD = []
+
 dsmr_tcp_bridge_ns = cg.esphome_ns.namespace("dsmr_tcp_bridge")
+StaleStrategy = dsmr_tcp_bridge_ns.enum("StaleStrategy")
 DsmrTcpBridge = dsmr_tcp_bridge_ns.class_("DsmrTcpBridge", cg.Component)
 
 STALE_STRATEGIES = {
-    "hold_last": dsmr_tcp_bridge_ns.enum("StaleStrategy").STALE_STRATEGY_HOLD_LAST,
-    "nan": dsmr_tcp_bridge_ns.enum("StaleStrategy").STALE_STRATEGY_NAN,
-    "zero": dsmr_tcp_bridge_ns.enum("StaleStrategy").STALE_STRATEGY_ZERO,
+    "hold_last": StaleStrategy.STALE_STRATEGY_HOLD_LAST,
+    "nan": StaleStrategy.STALE_STRATEGY_NAN,
+    "zero": StaleStrategy.STALE_STRATEGY_ZERO,
 }
 
 CONFIG_SCHEMA = cv.Schema(
@@ -37,9 +39,12 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    if CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("WiFi", None)
+
     cg.add(var.set_host(config[CONF_HOST]))
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_reconnect_interval(config[CONF_RECONNECT_INTERVAL]))
     cg.add(var.set_stale_timeout(config[CONF_STALE_TIMEOUT]))
     cg.add(var.set_stale_strategy(STALE_STRATEGIES[config[CONF_STALE_STRATEGY]]))
-    
+        
