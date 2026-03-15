@@ -9,40 +9,54 @@
 namespace esphome {
 namespace dsmr_tcp_bridge {
 
+enum StaleStrategy {
+  STALE_STRATEGY_HOLD_LAST = 0,
+  STALE_STRATEGY_NAN = 1,
+  STALE_STRATEGY_ZERO = 2,
+};
+
 class DsmrTcpBridge : public Component {
  public:
   void set_host(const std::string &host) { this->host_ = host; }
   void set_port(uint16_t port) { this->port_ = port; }
   void set_reconnect_interval(uint32_t reconnect_interval_ms) { this->reconnect_interval_ms_ = reconnect_interval_ms; }
+  void set_stale_timeout(uint32_t stale_timeout_ms) { this->stale_timeout_ms_ = stale_timeout_ms; }
+  void set_stale_strategy(StaleStrategy stale_strategy) { this->stale_strategy_ = stale_strategy; }
 
-  float get_v_l1() const { return this->v_l1_; }
-  float get_v_l2() const { return this->v_l2_; }
-  float get_v_l3() const { return this->v_l3_; }
+  float get_v_l1() const { return this->apply_stale_strategy_(this->v_l1_); }
+  float get_v_l2() const { return this->apply_stale_strategy_(this->v_l2_); }
+  float get_v_l3() const { return this->apply_stale_strategy_(this->v_l3_); }
 
-  float get_i_l1() const { return this->i_l1_; }
-  float get_i_l2() const { return this->i_l2_; }
-  float get_i_l3() const { return this->i_l3_; }
+  float get_i_l1() const { return this->apply_stale_strategy_(this->i_l1_); }
+  float get_i_l2() const { return this->apply_stale_strategy_(this->i_l2_); }
+  float get_i_l3() const { return this->apply_stale_strategy_(this->i_l3_); }
 
-  float get_p_l1_w() const { return this->p_l1_w_; }
-  float get_p_l2_w() const { return this->p_l2_w_; }
-  float get_p_l3_w() const { return this->p_l3_w_; }
-  float get_p_total_w() const { return this->p_total_w_; }
+  float get_p_l1_w() const { return this->apply_stale_strategy_(this->p_l1_w_); }
+  float get_p_l2_w() const { return this->apply_stale_strategy_(this->p_l2_w_); }
+  float get_p_l3_w() const { return this->apply_stale_strategy_(this->p_l3_w_); }
+  float get_p_total_w() const { return this->apply_stale_strategy_(this->p_total_w_); }
 
-  float get_s_l1_va() const { return this->s_l1_va_; }
-  float get_s_l2_va() const { return this->s_l2_va_; }
-  float get_s_l3_va() const { return this->s_l3_va_; }
+  float get_s_l1_va() const { return this->apply_stale_strategy_(this->s_l1_va_); }
+  float get_s_l2_va() const { return this->apply_stale_strategy_(this->s_l2_va_); }
+  float get_s_l3_va() const { return this->apply_stale_strategy_(this->s_l3_va_); }
 
-  float get_q_l1_var() const { return this->q_l1_var_; }
-  float get_q_l2_var() const { return this->q_l2_var_; }
-  float get_q_l3_var() const { return this->q_l3_var_; }
+  float get_q_l1_var() const { return this->apply_stale_strategy_(this->q_l1_var_); }
+  float get_q_l2_var() const { return this->apply_stale_strategy_(this->q_l2_var_); }
+  float get_q_l3_var() const { return this->apply_stale_strategy_(this->q_l3_var_); }
 
-  float get_pf_l1() const { return this->pf_l1_; }
-  float get_pf_l2() const { return this->pf_l2_; }
-  float get_pf_l3() const { return this->pf_l3_; }
+  float get_pf_l1() const { return this->apply_stale_strategy_(this->pf_l1_); }
+  float get_pf_l2() const { return this->apply_stale_strategy_(this->pf_l2_); }
+  float get_pf_l3() const { return this->apply_stale_strategy_(this->pf_l3_); }
 
-  float get_frequency_hz() const { return this->frequency_hz_; }
-  float get_import_kwh() const { return this->import_kwh_; }
-  float get_export_kwh() const { return this->export_kwh_; }
+  float get_frequency_hz() const { return this->apply_stale_strategy_(this->frequency_hz_); }
+  float get_import_kwh() const { return this->apply_stale_strategy_(this->import_kwh_); }
+  float get_export_kwh() const { return this->apply_stale_strategy_(this->export_kwh_); }
+
+  bool is_tcp_connected() const { return this->client_.connected(); }
+  bool has_valid_data() const { return this->data_valid_; }
+  bool is_data_fresh() const { return !this->is_stale_(); }
+  uint32_t get_age_ms() const;
+  float get_age_s() const { return this->get_age_ms() / 1000.0f; }
 
   void setup() override;
   void loop() override;
@@ -54,7 +68,11 @@ class DsmrTcpBridge : public Component {
   std::string host_;
   uint16_t port_{82};
   uint32_t reconnect_interval_ms_{3000};
+  uint32_t stale_timeout_ms_{10000};
+  StaleStrategy stale_strategy_{STALE_STRATEGY_HOLD_LAST};
   uint32_t last_connect_attempt_ms_{0};
+  uint32_t last_telegram_ms_{0};
+  bool data_valid_{false};
   WiFiClient client_;
   std::string line_;
 
@@ -98,6 +116,8 @@ class DsmrTcpBridge : public Component {
 
   void parse_line_(const std::string &line);
   void finalize_telegram_();
+  bool is_stale_() const;
+  float apply_stale_strategy_(float value) const;
 
   static bool starts_with_(const std::string &s, const char *prefix);
   static float extract_number_(const std::string &s);

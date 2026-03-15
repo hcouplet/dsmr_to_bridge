@@ -11,6 +11,10 @@ void DsmrTcpBridge::dump_config() {
   ESP_LOGCONFIG(TAG, "  Host: %s", this->host_.c_str());
   ESP_LOGCONFIG(TAG, "  Port: %u", this->port_);
   ESP_LOGCONFIG(TAG, "  Reconnect interval: %ums", this->reconnect_interval_ms_);
+  ESP_LOGCONFIG(TAG, "  Stale timeout: %ums", this->stale_timeout_ms_);
+  ESP_LOGCONFIG(TAG, "  Stale strategy: %s",
+                this->stale_strategy_ == STALE_STRATEGY_HOLD_LAST ? "hold_last" :
+                this->stale_strategy_ == STALE_STRATEGY_NAN ? "nan" : "zero");
 }
 
 bool DsmrTcpBridge::starts_with_(const std::string &s, const char *prefix) { return s.rfind(prefix, 0) == 0; }
@@ -49,6 +53,33 @@ float DsmrTcpBridge::safe_q_(float p_w, float s_va) {
   return sqrtf(x);
 }
 
+uint32_t DsmrTcpBridge::get_age_ms() const {
+  if (!this->data_valid_)
+    return UINT32_MAX;
+  return millis() - this->last_telegram_ms_;
+}
+
+bool DsmrTcpBridge::is_stale_() const {
+  if (!this->data_valid_)
+    return true;
+  return (millis() - this->last_telegram_ms_) > this->stale_timeout_ms_;
+}
+
+float DsmrTcpBridge::apply_stale_strategy_(float value) const {
+  if (!this->is_stale_())
+    return value;
+
+  switch (this->stale_strategy_) {
+    case STALE_STRATEGY_NAN:
+      return NAN;
+    case STALE_STRATEGY_ZERO:
+      return 0.0f;
+    case STALE_STRATEGY_HOLD_LAST:
+    default:
+      return value;
+  }
+}
+
 void DsmrTcpBridge::finalize_telegram_() {
   this->p_l1_w_ = (this->p_import_l1_kw_ - this->p_export_l1_kw_) * 1000.0f;
   this->p_l2_w_ = (this->p_import_l2_kw_ - this->p_export_l2_kw_) * 1000.0f;
@@ -70,6 +101,8 @@ void DsmrTcpBridge::finalize_telegram_() {
   this->frequency_hz_ = 50.0f;
   this->import_kwh_ = this->import_t1_kwh_ + this->import_t2_kwh_;
   this->export_kwh_ = this->export_t1_kwh_ + this->export_t2_kwh_;
+  this->last_telegram_ms_ = millis();
+  this->data_valid_ = true;
 
   ESP_LOGD(TAG, "Updated from telegram: Ptot=%.1fW V=[%.1f %.1f %.1f] I=[%.2f %.2f %.2f]",
            this->p_total_w_, this->v_l1_, this->v_l2_, this->v_l3_, this->i_l1_, this->i_l2_, this->i_l3_);
@@ -121,19 +154,17 @@ void DsmrTcpBridge::loop() {
   const uint32_t now = millis();
 
   if (!this->client_.connected()) {
-    if (now - this->last_connect_attempt_ms_ >= this->reconnect_interval_ms_) {
+    if (now - this->last_connect_attempt_ms_ > this->reconnect_interval_ms_) {
       this->last_connect_attempt_ms_ = now;
       this->client_.stop();
-      ESP_LOGI(TAG, "Connecting to %s:%u", this->host_.c_str(), this->port_);
-      if (!this->client_.connect(this->host_.c_str(), this->port_)) {
-        ESP_LOGW(TAG, "TCP connect failed");
-      }
+      ESP_LOGW(TAG, "TCP disconnected, reconnecting to %s:%u", this->host_.c_str(), this->port_);
+      this->client_.connect(this->host_.c_str(), this->port_);
     }
     return;
   }
 
   while (this->client_.available()) {
-    const char c = static_cast<char>(this->client_.read());
+    char c = static_cast<char>(this->client_.read());
     if (c == '\r')
       continue;
 
@@ -142,8 +173,9 @@ void DsmrTcpBridge::loop() {
         this->parse_line_(this->line_);
         this->line_.clear();
       }
-    } else if (this->line_.size() < 512) {
-      this->line_.push_back(c);
+    } else {
+      if (this->line_.size() < 512)
+        this->line_.push_back(c);
     }
   }
 }
