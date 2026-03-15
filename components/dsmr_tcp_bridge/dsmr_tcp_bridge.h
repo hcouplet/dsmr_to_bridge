@@ -56,7 +56,11 @@ class DsmrTcpBridge : public Component {
   bool has_valid_data() const { return this->data_valid_; }
   bool is_data_fresh() const { return !this->is_stale_(); }
   uint32_t get_age_ms() const;
-  float get_age_s() const { return this->get_age_ms() / 1000.0f; }
+  float DsmrTcpBridge::get_telegram_age_s() const {
+    if (!this->data_valid_)
+     return NAN;  
+    return (millis() - this->last_telegram_ms_) / 1000.0f;
+  }
 
   void setup() override;
   void loop() override;
