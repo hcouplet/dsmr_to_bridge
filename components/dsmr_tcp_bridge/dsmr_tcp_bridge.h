@@ -55,38 +55,39 @@ class DsmrTcpBridge : public Component {
   void set_stale_timeout(uint32_t stale_timeout_ms) { this->stale_timeout_ms_ = stale_timeout_ms; }
   void set_stale_strategy(StaleStrategy stale_strategy) { this->stale_strategy_ = stale_strategy; }
 
-  float get_v_l1() const { return this->apply_stale_strategy_(this->v_l1_); }
-  float get_v_l2() const { return this->apply_stale_strategy_(this->v_l2_); }
-  float get_v_l3() const { return this->apply_stale_strategy_(this->v_l3_); }
+  float get_v_l1() const { return this->apply_stale_strategy_(this->current_.voltage_l1); }
+  float get_v_l2() const { return this->apply_stale_strategy_(this->current_.voltage_l2); }
+  float get_v_l3() const { return this->apply_stale_strategy_(this->current_.voltage_l3); }
 
-  float get_i_l1() const { return this->apply_stale_strategy_(this->i_l1_); }
-  float get_i_l2() const { return this->apply_stale_strategy_(this->i_l2_); }
-  float get_i_l3() const { return this->apply_stale_strategy_(this->i_l3_); }
+  float get_i_l1() const { return this->apply_stale_strategy_(this->current_.current_l1); }
+  float get_i_l2() const { return this->apply_stale_strategy_(this->current_.current_l2); }
+  float get_i_l3() const { return this->apply_stale_strategy_(this->current_.current_l3); }
 
-  float get_p_l1_w() const { return this->apply_stale_strategy_(this->p_l1_w_); }
-  float get_p_l2_w() const { return this->apply_stale_strategy_(this->p_l2_w_); }
-  float get_p_l3_w() const { return this->apply_stale_strategy_(this->p_l3_w_); }
-  float get_p_total_w() const { return this->apply_stale_strategy_(this->p_total_w_); }
+  float get_p_l1_w() const { return this->apply_stale_strategy_(this->current_.power_l1); }
+  float get_p_l2_w() const { return this->apply_stale_strategy_(this->current_.power_l2); }
+  float get_p_l3_w() const { return this->apply_stale_strategy_(this->current_.power_l3); }
+  float get_p_total_w() const { return this->apply_stale_strategy_(this->current_.power_total); }
 
-  float get_s_l1_va() const { return this->apply_stale_strategy_(this->s_l1_va_); }
-  float get_s_l2_va() const { return this->apply_stale_strategy_(this->s_l2_va_); }
-  float get_s_l3_va() const { return this->apply_stale_strategy_(this->s_l3_va_); }
+  float get_s_l1_va() const { return this->apply_stale_strategy_(this->current_.apparent_power_l1); }
+  float get_s_l2_va() const { return this->apply_stale_strategy_(this->current_.apparent_power_l2); }
+  float get_s_l3_va() const { return this->apply_stale_strategy_(this->current_.apparent_power_l3); }
 
-  float get_q_l1_var() const { return this->apply_stale_strategy_(this->q_l1_var_); }
-  float get_q_l2_var() const { return this->apply_stale_strategy_(this->q_l2_var_); }
-  float get_q_l3_var() const { return this->apply_stale_strategy_(this->q_l3_var_); }
+  float get_q_l1_var() const { return this->apply_stale_strategy_(this->current_.reactive_power_l1); }
+  float get_q_l2_var() const { return this->apply_stale_strategy_(this->current_.reactive_power_l2); }
+  float get_q_l3_var() const { return this->apply_stale_strategy_(this->current_.reactive_power_l3); }
 
-  float get_pf_l1() const { return this->apply_stale_strategy_(this->pf_l1_); }
-  float get_pf_l2() const { return this->apply_stale_strategy_(this->pf_l2_); }
-  float get_pf_l3() const { return this->apply_stale_strategy_(this->pf_l3_); }
+  float get_pf_l1() const { return this->apply_stale_strategy_(this->current_.power_factor_l1); }
+  float get_pf_l2() const { return this->apply_stale_strategy_(this->current_.power_factor_l2); }
+  float get_pf_l3() const { return this->apply_stale_strategy_(this->current_.power_factor_l3); }
 
-  float get_frequency_hz() const { return this->apply_stale_strategy_(this->frequency_hz_); }
-  float get_import_kwh() const { return this->apply_stale_strategy_(this->import_kwh_); }
-  float get_export_kwh() const { return this->apply_stale_strategy_(this->export_kwh_); }
+  float get_frequency_hz() const { return this->apply_stale_strategy_(this->current_.frequency); }
+  float get_import_kwh() const { return this->apply_stale_strategy_(this->current_.import_energy); }
+  float get_export_kwh() const { return this->apply_stale_strategy_(this->current_.export_energy); }
 
   bool is_tcp_connected() { return this->client_.connected(); }
   bool has_valid_data() const { return this->data_valid_; }
   bool is_data_fresh() const { return !this->is_stale_(); }
+
   uint32_t get_age_ms() const;
   float get_age_s() const {
     if (!this->data_valid_)
@@ -112,31 +113,11 @@ class DsmrTcpBridge : public Component {
   WiFiClient client_;
   std::string line_;
 
-  // Exposed SDM630-like values
-  float v_l1_{0.0f};
-  float v_l2_{0.0f};
-  float v_l3_{0.0f};
-  float i_l1_{0.0f};
-  float i_l2_{0.0f};
-  float i_l3_{0.0f};
-  float p_l1_w_{0.0f};
-  float p_l2_w_{0.0f};
-  float p_l3_w_{0.0f};
-  float p_total_w_{0.0f};
-  float s_l1_va_{0.0f};
-  float s_l2_va_{0.0f};
-  float s_l3_va_{0.0f};
-  float q_l1_var_{0.0f};
-  float q_l2_var_{0.0f};
-  float q_l3_var_{0.0f};
-  float pf_l1_{0.0f};
-  float pf_l2_{0.0f};
-  float pf_l3_{0.0f};
-  float frequency_hz_{50.0f};
-  float import_kwh_{0.0f};
-  float export_kwh_{0.0f};
+  // Snapshot atomique exposé au Modbus
+  MeterSnapshot current_;
+  MeterSnapshot pending_;
 
-  // Per-telegram DSMR values
+  // Valeurs DSMR temporaires d'un télégramme
   float import_t1_kwh_{0.0f};
   float import_t2_kwh_{0.0f};
   float export_t1_kwh_{0.0f};
