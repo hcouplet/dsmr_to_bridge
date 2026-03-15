@@ -157,7 +157,7 @@ void DsmrTcpBridge::loop() {
     if (now - this->last_connect_attempt_ms_ > this->reconnect_interval_ms_) {
       this->last_connect_attempt_ms_ = now;
       this->client_.stop();
-      client_.setConnectionTimeout(3000);
+      client_.setConnectionTimeout(250);
       ESP_LOGW(TAG, "TCP disconnected, reconnecting to %s:%u", this->host_.c_str(), this->port_);
       bool ok = this->client_.connect(this->host_.c_str(), this->port_);
       ESP_LOGI("dsmr_tcp_bridge", "TCP connect to %s:%u -> %s", host_.c_str(), port_, ok ? "OK" : "FAIL");
