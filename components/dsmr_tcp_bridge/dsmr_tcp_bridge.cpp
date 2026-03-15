@@ -153,9 +153,9 @@ void DsmrTcpBridge::parse_line_(const std::string &line) {
 
 void DsmrTcpBridge::loop() {
 
-#  if (!WiFi.isConnected()) {
-#    return;
-#  }     
+//  if (!WiFi.isConnected()) {
+//    return;
+//  }     
 
   const uint32_t now = millis();
 
