@@ -52,7 +52,7 @@ class DsmrTcpBridge : public Component {
   float get_import_kwh() const { return this->apply_stale_strategy_(this->import_kwh_); }
   float get_export_kwh() const { return this->apply_stale_strategy_(this->export_kwh_); }
 
-  bool is_tcp_connected() const { return this->client_.connected(); }
+  bool is_tcp_connected() { return this->client_.connected(); }
   bool has_valid_data() const { return this->data_valid_; }
   bool is_data_fresh() const { return !this->is_stale_(); }
   uint32_t get_age_ms() const;
