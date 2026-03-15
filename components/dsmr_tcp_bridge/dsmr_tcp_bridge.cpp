@@ -14,11 +14,14 @@ void DsmrTcpBridge::dump_config() {
   ESP_LOGCONFIG(TAG, "  Reconnect interval: %ums", this->reconnect_interval_ms_);
   ESP_LOGCONFIG(TAG, "  Stale timeout: %ums", this->stale_timeout_ms_);
   ESP_LOGCONFIG(TAG, "  Stale strategy: %s",
-                this->stale_strategy_ == STALE_STRATEGY_HOLD_LAST ? "hold_last" :
-                this->stale_strategy_ == STALE_STRATEGY_NAN ? "nan" : "zero");
+                this->stale_strategy_ == STALE_STRATEGY_HOLD_LAST ? "hold_last"
+                : this->stale_strategy_ == STALE_STRATEGY_NAN     ? "nan"
+                                                                  : "zero");
 }
 
-bool DsmrTcpBridge::starts_with_(const std::string &s, const char *prefix) { return s.rfind(prefix, 0) == 0; }
+bool DsmrTcpBridge::starts_with_(const std::string &s, const char *prefix) {
+  return s.rfind(prefix, 0) == 0;
+}
 
 float DsmrTcpBridge::extract_number_(const std::string &s) {
   auto p1 = s.find('(');
@@ -82,31 +85,56 @@ float DsmrTcpBridge::apply_stale_strategy_(float value) const {
 }
 
 void DsmrTcpBridge::finalize_telegram_() {
-  this->p_l1_w_ = (this->p_import_l1_kw_ - this->p_export_l1_kw_) * 1000.0f;
-  this->p_l2_w_ = (this->p_import_l2_kw_ - this->p_export_l2_kw_) * 1000.0f;
-  this->p_l3_w_ = (this->p_import_l3_kw_ - this->p_export_l3_kw_) * 1000.0f;
-  this->p_total_w_ = (this->p_import_total_kw_ - this->p_export_total_kw_) * 1000.0f;
+  // Calculs sur les variables temporaires du télégramme
+  const float p_l1_w = (this->p_import_l1_kw_ - this->p_export_l1_kw_) * 1000.0f;
+  const float p_l2_w = (this->p_import_l2_kw_ - this->p_export_l2_kw_) * 1000.0f;
+  const float p_l3_w = (this->p_import_l3_kw_ - this->p_export_l3_kw_) * 1000.0f;
+  const float p_total_w = (this->p_import_total_kw_ - this->p_export_total_kw_) * 1000.0f;
 
-  this->s_l1_va_ = this->v_l1_ * this->i_l1_;
-  this->s_l2_va_ = this->v_l2_ * this->i_l2_;
-  this->s_l3_va_ = this->v_l3_ * this->i_l3_;
+  const float s_l1_va = this->pending_.voltage_l1 * this->pending_.current_l1;
+  const float s_l2_va = this->pending_.voltage_l2 * this->pending_.current_l2;
+  const float s_l3_va = this->pending_.voltage_l3 * this->pending_.current_l3;
 
-  this->q_l1_var_ = safe_q_(fabsf(this->p_l1_w_), this->s_l1_va_);
-  this->q_l2_var_ = safe_q_(fabsf(this->p_l2_w_), this->s_l2_va_);
-  this->q_l3_var_ = safe_q_(fabsf(this->p_l3_w_), this->s_l3_va_);
+  const float q_l1_var = safe_q_(fabsf(p_l1_w), s_l1_va);
+  const float q_l2_var = safe_q_(fabsf(p_l2_w), s_l2_va);
+  const float q_l3_var = safe_q_(fabsf(p_l3_w), s_l3_va);
 
-  this->pf_l1_ = safe_pf_(this->p_l1_w_, this->s_l1_va_);
-  this->pf_l2_ = safe_pf_(this->p_l2_w_, this->s_l2_va_);
-  this->pf_l3_ = safe_pf_(this->p_l3_w_, this->s_l3_va_);
+  const float pf_l1 = safe_pf_(p_l1_w, s_l1_va);
+  const float pf_l2 = safe_pf_(p_l2_w, s_l2_va);
+  const float pf_l3 = safe_pf_(p_l3_w, s_l3_va);
 
-  this->frequency_hz_ = 50.0f;
-  this->import_kwh_ = this->import_t1_kwh_ + this->import_t2_kwh_;
-  this->export_kwh_ = this->export_t1_kwh_ + this->export_t2_kwh_;
+  // Remplir le snapshot pending_
+  this->pending_.power_l1 = p_l1_w;
+  this->pending_.power_l2 = p_l2_w;
+  this->pending_.power_l3 = p_l3_w;
+  this->pending_.power_total = p_total_w;
+
+  this->pending_.apparent_power_l1 = s_l1_va;
+  this->pending_.apparent_power_l2 = s_l2_va;
+  this->pending_.apparent_power_l3 = s_l3_va;
+
+  this->pending_.reactive_power_l1 = q_l1_var;
+  this->pending_.reactive_power_l2 = q_l2_var;
+  this->pending_.reactive_power_l3 = q_l3_var;
+
+  this->pending_.power_factor_l1 = pf_l1;
+  this->pending_.power_factor_l2 = pf_l2;
+  this->pending_.power_factor_l3 = pf_l3;
+
+  this->pending_.frequency = 50.0f;
+  this->pending_.import_energy = this->import_t1_kwh_ + this->import_t2_kwh_;
+  this->pending_.export_energy = this->export_t1_kwh_ + this->export_t2_kwh_;
+
+  // Commit atomique
+  this->current_ = this->pending_;
+
   this->last_telegram_ms_ = millis();
   this->data_valid_ = true;
 
   ESP_LOGD(TAG, "Updated from telegram: Ptot=%.1fW V=[%.1f %.1f %.1f] I=[%.2f %.2f %.2f]",
-           this->p_total_w_, this->v_l1_, this->v_l2_, this->v_l3_, this->i_l1_, this->i_l2_, this->i_l3_);
+           this->current_.power_total,
+           this->current_.voltage_l1, this->current_.voltage_l2, this->current_.voltage_l3,
+           this->current_.current_l1, this->current_.current_l2, this->current_.current_l3);
 }
 
 void DsmrTcpBridge::parse_line_(const std::string &line) {
@@ -135,24 +163,23 @@ void DsmrTcpBridge::parse_line_(const std::string &line) {
   } else if (starts_with_(line, "1-0:62.7.0(")) {
     this->p_export_l3_kw_ = extract_number_(line);
   } else if (starts_with_(line, "1-0:32.7.0(")) {
-    this->v_l1_ = extract_number_(line);
+    this->pending_.voltage_l1 = extract_number_(line);
   } else if (starts_with_(line, "1-0:52.7.0(")) {
-    this->v_l2_ = extract_number_(line);
+    this->pending_.voltage_l2 = extract_number_(line);
   } else if (starts_with_(line, "1-0:72.7.0(")) {
-    this->v_l3_ = extract_number_(line);
+    this->pending_.voltage_l3 = extract_number_(line);
   } else if (starts_with_(line, "1-0:31.7.0(")) {
-    this->i_l1_ = extract_number_(line);
+    this->pending_.current_l1 = extract_number_(line);
   } else if (starts_with_(line, "1-0:51.7.0(")) {
-    this->i_l2_ = extract_number_(line);
+    this->pending_.current_l2 = extract_number_(line);
   } else if (starts_with_(line, "1-0:71.7.0(")) {
-    this->i_l3_ = extract_number_(line);
+    this->pending_.current_l3 = extract_number_(line);
   } else if (!line.empty() && line[0] == '!') {
     this->finalize_telegram_();
   }
 }
 
 void DsmrTcpBridge::loop() {
-
   if (millis() < 10000) {
     return;
   }

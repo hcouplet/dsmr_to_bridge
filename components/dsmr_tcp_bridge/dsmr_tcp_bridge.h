@@ -15,6 +15,38 @@ enum StaleStrategy {
   STALE_STRATEGY_ZERO = 2,
 };
 
+struct MeterSnapshot {
+  float voltage_l1{0};
+  float voltage_l2{0};
+  float voltage_l3{0};
+
+  float current_l1{0};
+  float current_l2{0};
+  float current_l3{0};
+
+  float power_l1{0};
+  float power_l2{0};
+  float power_l3{0};
+  float power_total{0};
+
+  float apparent_power_l1{0};
+  float apparent_power_l2{0};
+  float apparent_power_l3{0};
+
+  float reactive_power_l1{0};
+  float reactive_power_l2{0};
+  float reactive_power_l3{0};
+
+  float power_factor_l1{0};
+  float power_factor_l2{0};
+  float power_factor_l3{0};
+
+  float frequency{50.0f};
+
+  float import_energy{0};
+  float export_energy{0};
+};
+
 class DsmrTcpBridge : public Component {
  public:
   void set_host(const std::string &host) { this->host_ = host; }
