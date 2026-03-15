@@ -1,5 +1,6 @@
 #include "dsmr_tcp_bridge.h"
 #include "esphome/core/hal.h"
+#include <WiFi.h>
 
 namespace esphome {
 namespace dsmr_tcp_bridge {
