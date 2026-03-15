@@ -1,6 +1,6 @@
 esphome:
-  name: esp32-sdm630-bridge
-  friendly_name: ESP32 SDM630 Bridge
+  name: dsmr-meter
+  friendly_name: DSMR to SDM630
 
 esp32:
   board: esp32dev
@@ -13,35 +13,34 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
-api:
-ota:
+captive_portal:
 
 external_components:
-  - source:
-      type: local
-      path: ./components
+  - source: github://hcouplet/dsmr_to_bridge@main
     components: [dsmr_tcp_bridge]
+    refresh: 0s
 
 dsmr_tcp_bridge:
   id: p1bridge
-  host: 192.168.10.20
+  host: 192.168.0.20
   port: 82
   reconnect_interval: 3s
+  stale_timeout: 10s
+  stale_strategy: hold_last
 
 uart:
-  id: modbus_uart
-  tx_pin: D2
-  rx_pin: D1
-  baud_rate: 9600
-  parity: NONE
-  stop_bits: 1
+  - id: modbus_uart_dsmr
+    tx_pin: GPIO17
+    rx_pin: GPIO16
+    baud_rate: 9600
+    parity: NONE
+    stop_bits: 1
 
 modbus:
   id: modbus_hw
   role: server
-  uart_id: modbus_uart
+  uart_id: modbus_uart_dsmr
   send_wait_time: 300ms
-  # flow_control_pin: GPIO4   # à décommenter si ton module RS485 utilise DE/RE
 
 modbus_controller:
   - id: sdm630_server
@@ -54,83 +53,130 @@ modbus_controller:
     server_registers:
       - address: 0
         value_type: FP32
-        read_lambda: return id(p1bridge).get_v_l1();
+        read_lambda: |-
+          return id(p1bridge).get_v_l1();
       - address: 2
         value_type: FP32
-        read_lambda: return id(p1bridge).get_v_l2();
+        read_lambda: |-
+          return id(p1bridge).get_v_l2();
       - address: 4
         value_type: FP32
-        read_lambda: return id(p1bridge).get_v_l3();
+        read_lambda: |-
+          return id(p1bridge).get_v_l3();
 
       - address: 6
         value_type: FP32
-        read_lambda: return id(p1bridge).get_i_l1();
+        read_lambda: |-
+          return id(p1bridge).get_i_l1();
       - address: 8
         value_type: FP32
-        read_lambda: return id(p1bridge).get_i_l2();
+        read_lambda: |-
+          return id(p1bridge).get_i_l2();
       - address: 10
         value_type: FP32
-        read_lambda: return id(p1bridge).get_i_l3();
+        read_lambda: |-
+          return id(p1bridge).get_i_l3();
 
       - address: 12
         value_type: FP32
-        read_lambda: return id(p1bridge).get_p_l1_w();
+        read_lambda: |-
+          return id(p1bridge).get_p_l1_w();
       - address: 14
         value_type: FP32
-        read_lambda: return id(p1bridge).get_p_l2_w();
+        read_lambda: |-
+          return id(p1bridge).get_p_l2_w();
       - address: 16
         value_type: FP32
-        read_lambda: return id(p1bridge).get_p_l3_w();
+        read_lambda: |-
+          return id(p1bridge).get_p_l3_w();
 
       - address: 18
         value_type: FP32
-        read_lambda: return id(p1bridge).get_s_l1_va();
+        read_lambda: |-
+          return id(p1bridge).get_s_l1_va();
       - address: 20
         value_type: FP32
-        read_lambda: return id(p1bridge).get_s_l2_va();
+        read_lambda: |-
+          return id(p1bridge).get_s_l2_va();
       - address: 22
         value_type: FP32
-        read_lambda: return id(p1bridge).get_s_l3_va();
+        read_lambda: |-
+          return id(p1bridge).get_s_l3_va();
 
       - address: 24
         value_type: FP32
-        read_lambda: return id(p1bridge).get_q_l1_var();
+        read_lambda: |-
+          return id(p1bridge).get_q_l1_var();
       - address: 26
         value_type: FP32
-        read_lambda: return id(p1bridge).get_q_l2_var();
+        read_lambda: |-
+          return id(p1bridge).get_q_l2_var();
       - address: 28
         value_type: FP32
-        read_lambda: return id(p1bridge).get_q_l3_var();
+        read_lambda: |-
+          return id(p1bridge).get_q_l3_var();
 
       - address: 30
         value_type: FP32
-        read_lambda: return id(p1bridge).get_pf_l1();
+        read_lambda: |-
+          return id(p1bridge).get_pf_l1();
       - address: 32
         value_type: FP32
-        read_lambda: return id(p1bridge).get_pf_l2();
+        read_lambda: |-
+          return id(p1bridge).get_pf_l2();
       - address: 34
         value_type: FP32
-        read_lambda: return id(p1bridge).get_pf_l3();
+        read_lambda: |-
+          return id(p1bridge).get_pf_l3();
 
       - address: 52
         value_type: FP32
-        read_lambda: return id(p1bridge).get_p_total_w();
+        read_lambda: |-
+          return id(p1bridge).get_p_total_w();
+
       - address: 54
         value_type: FP32
-        read_lambda: return 0.0f;
+        read_lambda: |-
+          return 0.0f;
       - address: 56
         value_type: FP32
-        read_lambda: return 0.0f;
+        read_lambda: |-
+          return 0.0f;
       - address: 58
         value_type: FP32
-        read_lambda: return 0.0f;
+        read_lambda: |-
+          return 0.0f;
 
       - address: 70
         value_type: FP32
-        read_lambda: return id(p1bridge).get_frequency_hz();
+        read_lambda: |-
+          return id(p1bridge).get_frequency_hz();
       - address: 72
         value_type: FP32
-        read_lambda: return id(p1bridge).get_import_kwh();
+        read_lambda: |-
+          return id(p1bridge).get_import_kwh();
       - address: 74
         value_type: FP32
-        read_lambda: return id(p1bridge).get_export_kwh();
+        read_lambda: |-
+          return id(p1bridge).get_export_kwh();
+
+binary_sensor:
+  - platform: template
+    name: "DSMR TCP Connected"
+    lambda: |-
+      return id(p1bridge).is_tcp_connected();
+
+  - platform: template
+    name: "DSMR Data Fresh"
+    lambda: |-
+      return id(p1bridge).is_data_fresh();
+
+sensor:
+  - platform: template
+    name: "DSMR Telegram Age"
+    unit_of_measurement: "s"
+    accuracy_decimals: 1
+    update_interval: 1s
+    lambda: |-
+      return id(p1bridge).get_age_s();
+
